@@ -1,4 +1,4 @@
-import db from "../db.js";
+import db from "../config/db.js";
 
 export function createPost(title, content, groupId, userId) {
     return db.prepare(`
@@ -7,17 +7,18 @@ export function createPost(title, content, groupId, userId) {
     `).run(title, content, userId, groupId);
 }
 
-export function getAllPosts(userId, offset = 0) {
-    return db.prepare(`
+export async function getAllPosts(userId, offset = 0) {
+    const offserNum = Number(offset) * 10;
+    return (await db.execute(`
 SELECT 
     posts.*,
 
     users.username,
     users.icon AS user_icon,
 
-    groups.id AS group_id,
-    groups.name AS group_name,
-    groups.icon AS group_icon,
+    groupss.id AS group_id,
+    groupss.name AS group_name,
+    groupss.icon AS group_icon,
 
     COUNT(DISTINCT CASE 
         WHEN post_reactions.type = 'like' THEN post_reactions.id 
@@ -46,8 +47,8 @@ FROM posts
 JOIN users 
     ON posts.user_id = users.id
 
-JOIN groups
-    ON posts.group_id = groups.id
+JOIN groupss
+    ON posts.group_id = groupss.id
 
 LEFT JOIN post_reactions 
     ON posts.id = post_reactions.post_id
@@ -55,13 +56,13 @@ LEFT JOIN post_reactions
 LEFT JOIN comments
     ON posts.id = comments.post_id
 
-GROUP BY posts.id
+GROUP BY posts.id,users.id,groupss.id
 
 ORDER BY posts.created_at DESC
 
-LIMIT 10 OFFSET ?;
+LIMIT 10 OFFSET ${offserNum};
 
-    `).all(userId, userId, offset * 10);
+    `, [userId, userId]))[0];
 }
 export function getAllUserPosts(userId, currentUserId) {
     return db.prepare(`
@@ -142,45 +143,44 @@ export function getPostById(id, currentUserId) {
     `).get(currentUserId, currentUserId, id);
 }
 
-export function getPostByIdPublic(postId, userId = null) {
-    return db.prepare(`
-    SELECT 
-        p.*,
-        u.username,
-        g.name as group_name,
-        g.icon as group_icon,
+export async function getPostByIdPublic(postId, userId = null) {
+    const [rows] = await db.execute(`
+        SELECT 
+            p.*,
+            u.username,
+            g.name as group_name,
+            g.icon as group_icon,
 
-        COUNT(CASE WHEN pr.type = 'like' THEN 1 END) 
-            AS likes_count,
+            COUNT(CASE WHEN pr.type = 'like' THEN 1 END) AS likes_count,
+            COUNT(CASE WHEN pr.type = 'dislike' THEN 1 END) AS dislikes_count,
 
-        COUNT(CASE WHEN pr.type = 'dislike' THEN 1 END) 
-            AS dislikes_count,
+            MAX(CASE 
+                WHEN pr.user_id = ? AND pr.type = 'like'
+                THEN 1 ELSE 0 
+            END) AS user_liked,
 
-        MAX(CASE 
-            WHEN pr.user_id = ? AND pr.type = 'like'
-            THEN 1 ELSE 0 
-        END) AS user_liked,
+            MAX(CASE 
+                WHEN pr.user_id = ? AND pr.type = 'dislike'
+                THEN 1 ELSE 0 
+            END) AS user_disliked
 
-        MAX(CASE 
-            WHEN pr.user_id = ? AND pr.type = 'dislike'
-            THEN 1 ELSE 0 
-        END) AS user_disliked
+        FROM posts p
 
-    FROM posts p
+        JOIN users u 
+            ON p.user_id = u.id
 
-    JOIN users u 
-        ON p.user_id = u.id
+        JOIN groupss g 
+            ON g.id = p.group_id
 
-    JOIN groups g 
-        ON g.id = p.group_id
+        LEFT JOIN post_reactions pr 
+            ON p.id = pr.post_id
 
-    LEFT JOIN post_reactions pr 
-        ON p.id = pr.post_id
+        WHERE p.id = ?
 
-    WHERE p.id = ?
+        GROUP BY p.id, u.id, g.id
+    `, [userId ?? 0, userId ?? 0, postId]);
 
-    GROUP BY p.id
-  `).get(userId, userId, postId);
+    return rows[0] || null;
 }
 
 
@@ -264,22 +264,19 @@ export function searchPosts(keyword) {
     `).all(likePattern, likePattern);
     return posts;
 }
-
-export function searchByPost(keyword, userId = null) {
+export async function searchByPost(keyword, userId = null) {
 
     const words = keyword
         .trim()
         .split(/\s+/)
         .filter(Boolean);
 
-    // if (words.length === 0) return [];
+    if (words.length === 0) return [];
 
-    // Build dynamic WHERE conditions
     const conditions = words.map(() =>
-        "(posts.title LIKE ? COLLATE NOCASE OR posts.content LIKE ? COLLATE NOCASE)"
+        "(posts.title LIKE ? OR posts.content LIKE ?)"
     ).join(" OR ");
 
-    // Build like parameters
     const likeParams = words.flatMap(word => [
         `%${word}%`,
         `%${word}%`
@@ -290,9 +287,9 @@ export function searchByPost(keyword, userId = null) {
             posts.*,
             users.username,
             users.icon AS user_icon,
-            groups.id AS group_id,
-            groups.name AS group_name,
-            groups.icon AS group_icon,
+            groupss.id AS group_id,
+            groupss.name AS group_name,
+            groupss.icon AS group_icon,
 
             COUNT(DISTINCT CASE 
                 WHEN post_reactions.type = 'like' THEN post_reactions.id 
@@ -319,7 +316,7 @@ export function searchByPost(keyword, userId = null) {
         FROM posts
 
         JOIN users ON posts.user_id = users.id
-        JOIN groups ON posts.group_id = groups.id
+        JOIN groupss ON posts.group_id = groupss.id
 
         LEFT JOIN post_reactions 
             ON posts.id = post_reactions.post_id
@@ -329,15 +326,20 @@ export function searchByPost(keyword, userId = null) {
 
         WHERE ${conditions}
 
-        GROUP BY posts.id
+        GROUP BY posts.id, users.id, groupss.id
+
         ORDER BY posts.created_at DESC
     `;
 
-    return db.prepare(query).all(
-        userId,
-        userId,
+    const params = [
+        userId ?? 0,
+        userId ?? 0,
         ...likeParams
-    );
+    ];
+
+    const [rows] = await db.execute(query, params);
+
+    return rows;
 }
 
 
@@ -356,8 +358,8 @@ export async function createReply(req, res) {
 
     res.json({ success: true });
 }
-export function getComments(postId, userId = null) {
-    const comments = db.prepare(`
+export async function getComments(postId, userId = null) {
+    const comments = (await db.execute(`
     SELECT 
         c.id,
         c.content,
@@ -407,59 +409,51 @@ export function getComments(postId, userId = null) {
 
     WHERE c.post_id = ?
     ORDER BY c.created_at ASC
-  `).all(userId, userId, postId);
+  `, [userId, userId, postId]))[0];
 
     return comments;
 }
 
 
-export function createComment(content, userId, postId, parentId = null) {
+export async function createComment(content, userId, postId, parentId = null) {
 
     const sql = `
         INSERT INTO comments (content, user_id, post_id, parent_id)
         VALUES (?, ?, ?, ?)
     `;
 
-    const stmt = db.prepare(sql);
-
-    const result = stmt.run(
+    const [result] = await db.execute(sql, [
         content,
         userId,
         postId,
-        parentId
-    );
+        parentId ?? null
+    ]);
 
     return {
-        id: result.lastInsertRowid,
+        id: result.insertId,
         content,
         user_id: userId,
         post_id: postId,
-        parent_id: parentId
+        parent_id: parentId ?? null
     };
 }
 
-export function createNewPost(title, content, userId, groupId) {
-    console.log(title)
-    console.log(content)
-    console.log(userId)
-    console.log(groupId)
+export async function createNewPost(title, content, userId, groupId) {
 
     const sql = `
         INSERT INTO posts (title, content, user_id, group_id)
         VALUES (?, ?, ?, ?)
     `;
 
-    const stmt = db.prepare(sql);
-
-    const result = stmt.run(
+    const [result] = await db.execute(sql, [
         title,
         content,
         userId,
         groupId
-    );
+    ]);
 
     return {
-        id: result.lastInsertRowid,
+        id: result.insertId,
         title,
         content,
         user_id: userId,

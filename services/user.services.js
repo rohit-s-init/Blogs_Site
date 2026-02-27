@@ -353,7 +353,7 @@ FROM users u
     return (await db.execute(query))[0];
 }
 
-export function checkUserInGroup(userId, groupId) {
+export async function checkUserInGroup(userId, groupId) {
 
     const query = `
         SELECT *
@@ -362,7 +362,7 @@ export function checkUserInGroup(userId, groupId) {
           AND group_id = ?
     `;
 
-    return db.prepare(query).get(userId, groupId);
+    return (await db.execute(query, [userId, groupId]))[0].length>0;
 }
 
 

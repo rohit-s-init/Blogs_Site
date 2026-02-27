@@ -10,29 +10,30 @@ router.post("/createComment", requireAuth, createComment)
 
 
 // list all posts
-router.get("/getposts/:offset", listPosts); // list posts for non logged user
-router.get("/getposts/logged/:offset", requireAuth, listPosts); // list posts for logged user
+router.get("/getposts/:offset", listPosts); // list posts for non logged user checked
+router.get("/getposts/logged/:offset", requireAuth, listPosts); // list posts for logged user checked
 
 // upload files
-router.post("/upload", loadFiles, uploadFile);
+router.post("/upload", loadFiles, uploadFile); // checked
 
 // comments getting with id
-router.get("/comments/:post_id", getComments)
+router.get("/comments/:post_id", getComments) // checked
 
 // create post
-router.post("/createpost", requireAuth, createPosts);
+router.post("/createpost", requireAuth, createPosts); // checked
 
 // delete post
-router.delete("/:id", requireAuth, deletePost);
+// router.delete("/:id", requireAuth, deletePost);
 
 // react to post
-router.post("/:id/react", requireAuth, reactToPost);
+// router.post("/:id/react", requireAuth, reactToPost);
 
 // search keyword matching post
-router.get("/search/:keyword", keywordSearch);
-router.get("/postsearch/:keyword", postSearch);
+// router.get("/search/:keyword", keywordSearch);
+router.get("/postsearch/:keyword", postSearch); // checked
+router.get("/postsearch/", listPosts); // checked
 
-router.get("/getpost/:id",getPostForAnonymous);
+router.get("/getpost/:id",getPostForAnonymous); // checked
 
 
 

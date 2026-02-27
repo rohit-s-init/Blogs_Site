@@ -16,20 +16,20 @@ import * as userServices from "../services/user.services.js"
 //     res.json({ message: "Post created" });
 // }
 
-export function listPosts(req, res) {
+export async function listPosts(req, res) {
     const offset = req.params.offset;
-    if (!offset) {
-        return res.status(400).json({ status: false, message: "please define offset" });
-    }
+    // if (!offset) {
+    //     return res.status(400).json({ status: false, message: "please define offset" });
+    // }
     try {
         let posts;
 
         if (req.user) {
             // Logged-in user → show reaction state
-            posts = postService.getAllPosts(req.user.id, offset);
+            posts = await postService.getAllPosts(req.user.id, offset);
         } else {
             // Guest user → no reaction state
-            posts = postService.getAllPosts(null, offset);
+            posts = await postService.getAllPosts(0, offset);
         }
 
         res.json(posts);
@@ -49,9 +49,9 @@ export function getPostForLoggedUser(req, res) {
 
     res.json(post);
 }
-export function getPostForAnonymous(req, res) {
+export async function getPostForAnonymous(req, res) {
     console.log("get post for anonymous")
-    const post = postService.getPostByIdPublic(req.params.id);
+    const post = await postService.getPostByIdPublic(req.params.id);
     console.log(req.query.id);
 
     if (!post) return res.status(404).json({ error: "Not found" });
@@ -99,7 +99,7 @@ export function keywordSearch(req, res) {
 
 }
 
-export function postSearch(req, res) {
+export async function postSearch(req, res) {
     const keyword = req.params.keyword;
     console.log(keyword)
 
@@ -110,7 +110,7 @@ export function postSearch(req, res) {
         })
     }
 
-    const result = postService.searchByPost(keyword);
+    const result = await postService.searchByPost(keyword);
     console.log(result)
     return res.json(
         {
@@ -140,9 +140,9 @@ function buildCommentTree(comments) {
     });
     return roots;
 }
-export function getComments(req, res) {
+export async function getComments(req, res) {
     const postId = req.params.post_id;
-    const comments = postService.getComments(postId);
+    const comments = await postService.getComments(postId);
     console.log("comments are")
     console.log(comments)
     res.json({
@@ -151,7 +151,7 @@ export function getComments(req, res) {
     })
 }
 
-export function createComment(req, res) {
+export async function createComment(req, res) {
     const { content, postId, parentId } = req.body;
     const userId = req.user.id;
     if (!content || !userId || !postId) {
@@ -162,7 +162,7 @@ export function createComment(req, res) {
     }
 
     try {
-        const result = postService.createComment(content, userId, postId, parentId);
+        const result = await postService.createComment(content, userId, postId, parentId);
         res.json({
             status: true,
             message: result
@@ -201,7 +201,9 @@ export async function uploadFile(req, res) {
 
 export async function createPosts(req, res) {
     const { title, description, groupId } = req.body;
-    const userId = userServices.checkUserInGroup(req.user.id, groupId);
+    const userId = await userServices.checkUserInGroup(req.user.id, groupId);
+    console.log(userId);
+    // return;
     if (!userId) {
         return res.json({
             status: false,
@@ -209,7 +211,7 @@ export async function createPosts(req, res) {
         })
     }
     try {
-        const resp = postService.createNewPost(title, description, req.user.id, groupId);
+        const resp = await postService.createNewPost(title, description, req.user.id, groupId);
 
         return res.json({
             status: true,
