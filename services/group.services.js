@@ -1,6 +1,8 @@
 import db from "../config/db.js";
 
 export async function getPosts(userId, offset = 0, groupId) {
+    const pageOffset = Number(offset) * 10;
+
     const [rows] = await db.execute(
         `
         SELECT 
@@ -51,17 +53,19 @@ export async function getPosts(userId, offset = 0, groupId) {
 
         WHERE posts.group_id = ?
 
-        GROUP BY posts.id
+        GROUP BY 
+            posts.id,
+            users.id,
+            groupss.id
 
         ORDER BY posts.created_at DESC
 
-        LIMIT 10 OFFSET ?
+        LIMIT 10 OFFSET ${pageOffset}
         `,
         [
             userId,
             userId,
-            Number(groupId),
-            offset * 10
+            Number(groupId)
         ]
     );
 
@@ -101,9 +105,9 @@ export async function getGroupData(groupId, currentUserId) {
 
         WHERE g.id = ?
 
-        GROUP BY g.id
+        GROUP BY g.id,u.id,gm.id
         `,
-        [currentUserId, groupId]
+        [currentUserId ? currentUserId : 0, groupId]
     );
 
     return rows[0] || null;
@@ -140,14 +144,13 @@ export async function searchGroup(keyword, userId = null) {
 
             COUNT(DISTINCT gm.user_id) AS members_count,
 
-            ${
-              userId
-                ? `CASE 
+            ${userId
+            ? `CASE 
                      WHEN gm2.user_id IS NOT NULL THEN 1 
                      ELSE 0 
                    END AS is_member`
-                : `0 AS is_member`
-            }
+            : `0 AS is_member`
+        }
 
         FROM groupss g
 
@@ -157,8 +160,7 @@ export async function searchGroup(keyword, userId = null) {
         LEFT JOIN group_members gm
             ON g.id = gm.group_id
 
-        ${
-          userId
+        ${userId
             ? `LEFT JOIN group_members gm2
                ON g.id = gm2.group_id
                AND gm2.user_id = ?`
@@ -167,7 +169,7 @@ export async function searchGroup(keyword, userId = null) {
 
         WHERE ${conditions}
 
-        GROUP BY g.id
+        GROUP BY g.id,u.id
         ORDER BY g.created_at DESC
     `;
 
@@ -197,14 +199,13 @@ export async function getAllGroups(userId = null) {
 
             COUNT(DISTINCT gm.user_id) AS members_count,
 
-            ${
-              userId
-                ? `CASE 
+            ${userId
+            ? `CASE 
                     WHEN MAX(gm2.user_id) IS NOT NULL THEN 1
                     ELSE 0
                     END AS is_member`
-                : `0 AS is_member`
-            }
+            : `0 AS is_member`
+        }
 
         FROM groupss g
 
@@ -214,8 +215,7 @@ export async function getAllGroups(userId = null) {
         LEFT JOIN group_members gm
             ON g.id = gm.group_id
 
-        ${
-          userId
+        ${userId
             ? `LEFT JOIN group_members gm2
                ON g.id = gm2.group_id
                AND gm2.user_id = ?`
@@ -237,7 +237,7 @@ export async function getAllGroups(userId = null) {
 
     const params = userId ? [userId] : [];
 
-    return (await db.execute(query,params))[0];
+    return (await db.execute(query, params))[0];
 }
 
 

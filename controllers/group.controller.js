@@ -1,23 +1,23 @@
 import * as groupServices from "../services/group.services.js"
-export function getPosts(req, res) {
+export async function getPosts(req, res) {
     const groupId = req.params.groupId;
     const offset = req.params.offset;
-    const resp = groupServices.getPosts(req.user ? req.user.id : null, offset, groupId);
+    const resp = await groupServices.getPosts(req.user ? req.user.id : null, offset, groupId);
     return res.json({
         posts: resp
     })
 }
 
-export function getGroup(req, res) {
+export async function getGroup(req, res) {
     const groupId = req.params.groupId;
-    const group = groupServices.getGroupData(groupId,req.user?.id);
+    const group = await groupServices.getGroupData(groupId,req.user?.id);
     res.json({
         status: true,
         group
     })
 }
 
-export function searchGroup(req, res) {
+export async function searchGroup(req, res) {
     const keyword = req.params.keyword;
 
     if (!keyword) {
@@ -27,7 +27,7 @@ export function searchGroup(req, res) {
         })
     }
 
-    const result = groupServices.searchGroup(keyword);
+    const result = await groupServices.searchGroup(keyword);
     return res.json(
         {
             status: true,
@@ -51,11 +51,11 @@ export async function getGroups(req, res) {
 }
 
 
-export function createGroup(req, res) {
+export async function createGroup(req, res) {
 
     const { name, description } = req.body;
     try {
-        const resp = groupServices.createGroup({ name, description, createdBy: req.user.id });
+        const resp = await groupServices.createGroup({ name, description, createdBy: req.user.id });
         return res.json({
             status: true,
             resp
@@ -71,11 +71,11 @@ export function createGroup(req, res) {
 }
 
 
-export function joinGroup(req, res) {
+export async function joinGroup(req, res) {
     const { groupId } = req.body;
 
     try {
-        const resp = groupServices.joinGroup(groupId, req.user.id);
+        const resp = await groupServices.joinGroup(groupId, req.user.id);
         return res.json({
             status: true,
             resp
