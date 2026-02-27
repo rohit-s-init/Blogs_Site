@@ -1,4 +1,4 @@
-import db from "../db.js";
+import db from "../config/db.js";
 import bcrypt from "bcrypt"
 import { generateOTP, otpExpiry } from "../utils/otp.js";
 import { sendOTP } from "./mail.services.js";
@@ -6,45 +6,57 @@ import { sendOTP } from "./mail.services.js";
 const SALT_ROUND = 10;
 
 
-export function registerUser(userName, password, email, otp) {
-    const hash = bcrypt.hashSync(password, SALT_ROUND);
-    const qury = db.prepare(`
-        INSERT INTO users (username, password_hash, email, otp, otp_expiry)
-        VALUES (?, ?,?,?,?)
-    `);
-
+export async function registerUser(userName, password, email, otp) {
+    const hash = await bcrypt.hash(password, SALT_ROUND);
     const exp = otpExpiry();
 
-    const result = qury.run(userName, hash, email, otp, exp);
+    const [result] = await db.execute(
+        `
+        INSERT INTO users (username, password_hash, email, otp, otp_expiry)
+        VALUES (?, ?, ?, ?, ?)
+        `,
+        [userName, hash, email, otp, exp]
+    );
 
-    console.log("user adding to database ");
+    console.log("User added to database");
 
-    return {
-        status: true,
-        result
-    };
+    return result
 }
-export function saveUser(email) {
-    const query = db.prepare(`
+
+export async function saveUser(email) {
+    const [result] = await db.execute(
+        `
         UPDATE users
-        SET is_verified=1, otp=NULL, otp_expiry=NULL
-        WHERE email=?
-    `)
-    return query.run(email);
+        SET is_verified = 1,
+            otp = NULL,
+            otp_expiry = NULL
+        WHERE email = ?
+        `,
+        [email]
+    );
+
+    return result.affectedRows > 0;
 }
 
-export function findUserByUsername(username) {
-    const user = db.prepare(`
-    SELECT * FROM users WHERE username = ?
-  `).get(username);
-    return user
-}
-export function findUserByEmail(email) {
-    const user = db.prepare(`
-    SELECT * FROM users WHERE email = ?
-  `).get(email);
-    return user
+export async function findUserByUsername(username) {
+    const [rows] = await db.execute(
+        `
+        SELECT * FROM users WHERE username = ?
+        `,
+        [username]
+    );
 
+    return rows[0] || null;
+}
+export async function findUserByEmail(email) {
+    const [rows] = await db.execute(
+        `
+        SELECT * FROM users WHERE email = ?
+        `,
+        [email]
+    );
+
+    return rows[0] || null;
 }
 
 

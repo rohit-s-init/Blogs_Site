@@ -14,7 +14,7 @@ export async function register(req, res) {
         return res.status(400).json({ success: false, message: "Missing Field" });
     }
 
-    const existing = findUserByEmail(email);
+    const existing = await findUserByEmail(email);
     if (existing) {
         return res.status(400).json({ status: false, message: "Email already registered" });
     }
@@ -22,16 +22,24 @@ export async function register(req, res) {
 
     const otp = generateOTP();
 
-    registerUser(username, password, email, otp);
+    try {
+        await registerUser(username, password, email, otp);
+    } catch (error) {
+        console.log(error)
+        return res.status(400).json({
+            status: false,
+            message: "internal server error in registering user"
+        })
+    }
 
     try {
         await sendOTP(email, otp);
-        res.json({
+        return res.json({
             status: true,
             message: "otp sent to mail"
         })
     } catch (error) {
-        res.json({
+        return res.json({
             status: false,
             message: "error in sending otp "
         })
@@ -40,14 +48,22 @@ export async function register(req, res) {
 
 }
 
-export function verifyOtp(req, res) {
+export async function verifyOtp(req, res) {
     const { email, otp } = req.body;
 
     if (!email || !otp) {
         return res.status(400).json({ status: false, message: "Missing field" })
     }
 
-    const user = findUserByEmail(email);
+    let user;
+    try {
+        user = await findUserByEmail(email)
+    } catch (error) {
+        return res.status(400).json({
+            status: false,
+            message: "internal server error in finding user by email"
+        })
+    }
 
     if (!user) {
         return res.status(400).json({ status: false, message: "user not found" });
@@ -59,7 +75,11 @@ export function verifyOtp(req, res) {
         return res.status(400).json({ status: false, message: "invalid otp" });
     }
 
-    saveUser(email);
+    try {
+        await saveUser(email);
+    } catch (error) {
+        return res.status(400).json({ status: false, message: "internal error in saving user" });
+    }
     res.cookie("token", signToken(user), {
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: "/"
@@ -68,14 +88,22 @@ export function verifyOtp(req, res) {
 
 }
 
-export function login(req, res) {
+export async function login(req, res) {
     const { username, password } = req.body;
     if (!username || !password) {
         return res.status(400).json({ success: false, message: "Missing Field" });
     }
-    let user = findUserByEmail(username);
-    if (!user) {
-        user = findUserByUsername(username);
+    let user;
+    try {
+        user = await findUserByEmail(username);
+        if (!user) {
+            user = await findUserByUsername(username);
+        }
+    } catch (error) {
+        return res.status(400).json({
+            status: false,
+            message: "internal server error in finding the user"
+        })
     }
     if (!user) {
         return res.status(401).json({

@@ -1,103 +1,115 @@
-import db from "../db.js";
+import db from "../config/db.js";
 
-export function getPosts(userId, offset = 0, groupId) {
+export async function getPosts(userId, offset = 0, groupId) {
+    const [rows] = await db.execute(
+        `
+        SELECT 
+            posts.*,
 
-    return db.prepare(`
-SELECT 
-    posts.*,
+            users.username,
+            users.icon AS user_icon,
 
-    users.username,
-    users.icon AS user_icon,
+            groupss.id AS group_id,
+            groupss.name AS group_name,
+            groupss.icon AS group_icon,
 
-    groups.id AS group_id,
-    groups.name AS group_name,
-    groups.icon AS group_icon,
+            COUNT(DISTINCT CASE 
+                WHEN post_reactions.type = 'like' THEN post_reactions.id 
+            END) AS likes_count,
 
-    COUNT(DISTINCT CASE 
-        WHEN post_reactions.type = 'like' THEN post_reactions.id 
-    END) AS likes_count,
+            COUNT(DISTINCT CASE 
+                WHEN post_reactions.type = 'dislike' THEN post_reactions.id 
+            END) AS dislikes_count,
 
-    COUNT(DISTINCT CASE 
-        WHEN post_reactions.type = 'dislike' THEN post_reactions.id 
-    END) AS dislikes_count,
+            COUNT(DISTINCT comments.id) AS comment_count,
 
-    COUNT(DISTINCT comments.id) AS comment_count,
+            MAX(CASE 
+                WHEN post_reactions.user_id = ? 
+                     AND post_reactions.type = 'like'
+                THEN 1 ELSE 0 
+            END) AS user_liked,
 
-    MAX(CASE 
-        WHEN post_reactions.user_id = ? 
-             AND post_reactions.type = 'like'
-        THEN 1 ELSE 0 
-    END) AS user_liked,
+            MAX(CASE 
+                WHEN post_reactions.user_id = ? 
+                     AND post_reactions.type = 'dislike'
+                THEN 1 ELSE 0 
+            END) AS user_disliked
 
-    MAX(CASE 
-        WHEN post_reactions.user_id = ? 
-             AND post_reactions.type = 'dislike'
-        THEN 1 ELSE 0 
-    END) AS user_disliked
+        FROM posts
 
-FROM posts
+        JOIN users 
+            ON posts.user_id = users.id
 
-JOIN users 
-    ON posts.user_id = users.id
+        JOIN groupss
+            ON posts.group_id = groupss.id
 
-JOIN groups
-    ON posts.group_id = groups.id
+        LEFT JOIN post_reactions 
+            ON posts.id = post_reactions.post_id
 
-LEFT JOIN post_reactions 
-    ON posts.id = post_reactions.post_id
+        LEFT JOIN comments
+            ON posts.id = comments.post_id
 
-LEFT JOIN comments
-    ON posts.id = comments.post_id
+        WHERE posts.group_id = ?
 
-WHERE posts.group_id = ?
+        GROUP BY posts.id
 
-GROUP BY posts.id
+        ORDER BY posts.created_at DESC
 
-ORDER BY posts.created_at DESC
+        LIMIT 10 OFFSET ?
+        `,
+        [
+            userId,
+            userId,
+            Number(groupId),
+            offset * 10
+        ]
+    );
 
-LIMIT 10 OFFSET ?;
-
-    `).all(userId, userId, Number(groupId), offset * 10);
+    return rows;
 }
 
-export function getGroupData(groupId, currentUserId) {
+export async function getGroupData(groupId, currentUserId) {
     console.log(currentUserId);
-    const query = db.prepare(`
-SELECT
-    g.id,
-    g.name,
-    g.description,
-    g.icon,
-    g.background,
-    g.created_at,
 
-    u.username AS creator_username,
-    u.icon AS creator_icon,
+    const [rows] = await db.execute(
+        `
+        SELECT
+            g.id,
+            g.name,
+            g.description,
+            g.icon,
+            g.background,
+            g.created_at,
 
-    COUNT(DISTINCT gm.user_id) AS members_count,
+            u.username AS creator_username,
+            u.icon AS creator_icon,
 
-    MAX(CASE
-        WHEN gm.user_id = ? THEN 1
-        ELSE 0
-    END) AS is_member
+            COUNT(DISTINCT gm.user_id) AS members_count,
 
-FROM groups g
+            MAX(CASE
+                WHEN gm.user_id = ? THEN 1
+                ELSE 0
+            END) AS is_member
 
-LEFT JOIN users u
-    ON g.created_by = u.id
+        FROM groupss g
 
-LEFT JOIN group_members gm
-    ON g.id = gm.group_id
+        LEFT JOIN users u
+            ON g.created_by = u.id
 
-WHERE g.id = ?
+        LEFT JOIN group_members gm
+            ON g.id = gm.group_id
 
-GROUP BY g.id;
+        WHERE g.id = ?
 
-        `);
-    return query.get(currentUserId, groupId);
+        GROUP BY g.id
+        `,
+        [currentUserId, groupId]
+    );
+
+    return rows[0] || null;
 }
 
-export function searchGroup(keyword, userId = null) {
+export async function searchGroup(keyword, userId = null) {
 
     const words = keyword
         .trim()
@@ -105,7 +117,7 @@ export function searchGroup(keyword, userId = null) {
         .filter(Boolean);
 
     const conditions = words.map(() =>
-        "(g.name LIKE ? COLLATE NOCASE OR g.description LIKE ? COLLATE NOCASE OR u.username LIKE ? COLLATE NOCASE)"
+        "(g.name LIKE ? OR g.description LIKE ? OR u.username LIKE ?)"
     ).join(" OR ");
 
     const likeParams = words.flatMap(word => [
@@ -137,7 +149,7 @@ export function searchGroup(keyword, userId = null) {
                 : `0 AS is_member`
             }
 
-        FROM groups g
+        FROM groupss g
 
         LEFT JOIN users u
             ON g.created_by = u.id
@@ -159,14 +171,17 @@ export function searchGroup(keyword, userId = null) {
         ORDER BY g.created_at DESC
     `;
 
+    // ⚠ Parameter order matters
     const finalParams = userId
-        ? [...likeParams, userId]
+        ? [userId, ...likeParams]
         : likeParams;
 
-    return db.prepare(query).all(...finalParams);
+    const [rows] = await db.execute(query, finalParams);
+
+    return rows;
 }
 
-export function getAllGroups(userId = null) {
+export async function getAllGroups(userId = null) {
 
     const query = `
         SELECT
@@ -185,13 +200,13 @@ export function getAllGroups(userId = null) {
             ${
               userId
                 ? `CASE 
-                     WHEN gm2.user_id IS NOT NULL THEN 1 
-                     ELSE 0 
-                   END AS is_member`
+                    WHEN MAX(gm2.user_id) IS NOT NULL THEN 1
+                    ELSE 0
+                    END AS is_member`
                 : `0 AS is_member`
             }
 
-        FROM groups g
+        FROM groupss g
 
         LEFT JOIN users u
             ON g.created_by = u.id
@@ -207,69 +222,94 @@ export function getAllGroups(userId = null) {
             : ``
         }
 
-        GROUP BY g.id
-        ORDER BY g.created_at DESC
-    `;
-
-    const params = userId ? [userId] : [];
-
-    return db.prepare(query).all(...params);
-}
-
-
-
-export function createGroup({ name, description, createdBy }) {
-    const insertGroup = db.prepare(`
-        INSERT INTO groups (name, description, created_by)
-        VALUES (?, ?, ?)
-    `);
-
-    const insertMember = db.prepare(`
-        INSERT INTO group_members (group_id, user_id, role)
-        VALUES (?, ?, 'admin')
-    `);
-
-    const getGroup = db.prepare(`
-        SELECT
+        GROUP BY 
             g.id,
             g.name,
             g.description,
             g.icon,
             g.background,
             g.created_at,
-            u.username AS creator_username,
-            u.icon AS creator_icon
-        FROM groups g
-        LEFT JOIN users u ON g.created_by = u.id
-        WHERE g.id = ?
-    `);
+            u.username,
+            u.icon
 
-    const transaction = db.transaction(() => {
-        const result = insertGroup.run(name, description, createdBy);
+        ORDER BY g.created_at DESC
+    `;
 
-        const groupId = result.lastInsertRowid;
+    const params = userId ? [userId] : [];
 
-        insertMember.run(groupId, createdBy);
-
-        return getGroup.get(groupId);
-    });
-
-    return transaction();
+    return (await db.execute(query,params))[0];
 }
 
 
 
-export function joinGroup(groupId, userId) {
+export async function createGroup({ name, description, createdBy }) {
+    const connection = await db.getConnection();
 
-    const query = `
-      INSERT INTO group_members (group_id, user_id, role)
-      VALUES (?, ?, 'member')
-      ON CONFLICT(group_id, user_id) DO NOTHING
-    `;
+    try {
+        await connection.beginTransaction();
 
-    const stmt = db.prepare(query);
-    const result = stmt.run(groupId, userId);
+        // 1️⃣ Insert group
+        const [insertResult] = await connection.execute(
+            `
+            INSERT INTO groupss (name, description, created_by)
+            VALUES (?, ?, ?)
+            `,
+            [name, description, createdBy]
+        );
+
+        const groupId = insertResult.insertId;
+
+        // 2️⃣ Insert admin membership
+        await connection.execute(
+            `
+            INSERT INTO group_members (group_id, user_id, role)
+            VALUES (?, ?, 'admin')
+            `,
+            [groupId, createdBy]
+        );
+
+        // 3️⃣ Fetch created group
+        const [rows] = await connection.execute(
+            `
+            SELECT
+                g.id,
+                g.name,
+                g.description,
+                g.icon,
+                g.background,
+                g.created_at,
+                u.username AS creator_username,
+                u.icon AS creator_icon
+            FROM groupss g
+            LEFT JOIN users u ON g.created_by = u.id
+            WHERE g.id = ?
+            `,
+            [groupId]
+        );
+
+        await connection.commit();
+
+        return rows[0];
+
+    } catch (error) {
+        await connection.rollback();
+        throw error;
+    } finally {
+        connection.release();
+    }
+}
+
+
+
+export async function joinGroup(groupId, userId) {
+
+    const [result] = await db.execute(
+        `
+        INSERT IGNORE INTO group_members (group_id, user_id, role)
+        VALUES (?, ?, 'member')
+        `,
+        [groupId, userId]
+    );
 
     return result;
-
 }

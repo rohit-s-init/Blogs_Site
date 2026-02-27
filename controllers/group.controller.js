@@ -38,10 +38,10 @@ export function searchGroup(req, res) {
 }
 
 
-export function getGroups(req, res) {
+export async function getGroups(req, res) {
     
 
-    const result = groupServices.getAllGroups(req.user?.id);
+    const result = await groupServices.getAllGroups(req.user?.id);
     return res.json(
         {
             status: true,
