@@ -7,14 +7,14 @@ export function getMe(req, res) {
         user: req.user
     })
 }
-export function getMyPosts(req, res) {
-    const posts = userServices.getMyPosts(req.user.id);
+export async function getMyPosts(req, res) {
+    const posts = await userServices.getMyPosts(req.user.id);
     return res.json({
         status: true,
         posts: posts
     })
 }
-export function getMyPostsById(req, res) {
+export async function getMyPostsById(req, res) {
     const id = req.param.id;
     if(req.user.id!=id){
         return res.json({
@@ -22,25 +22,25 @@ export function getMyPostsById(req, res) {
             message: "not your post"
         })
     }
-    const posts = userServices.getMyPostById(id);
+    const posts = await userServices.getMyPostById(id);
     return res.json({
         status: true,
         posts: posts
     })
 }
-export function getUserStats(req, res) {
+export async function getUserStats(req, res) {
     const userId = req.user.id;
 
-    const stats = userServices.getUserStats(userId);
+    const stats = await userServices.getUserStats(userId);
 
     res.json(stats);
 }
 
 
 // get user profile /:userId
-export function getUserProfile(req,res){
+export async function getUserProfile(req,res){
     const userId = req.params.userId;
-    const profile = userServices.getUserById(userId);
+    const profile = await userServices.getUserById(userId);
     console.log(userId);
     console.log(profile);
     if(!profile){
@@ -55,57 +55,57 @@ export function getUserProfile(req,res){
 }
 
 // get recent posts /"userId/:offset"
-export function getRecentPosts(req,res){
+export async function getRecentPosts(req,res){
     const userId = req.params.userId;
     const offset = req.params.offset
-    const recentPosts = userServices.getRecentPosts(userId,offset)
+    const recentPosts = await userServices.getRecentPosts(userId,offset)
     return res.json({
         posts: recentPosts
     })
 }
 
 // get recent comments /"userId/:offset"
-export function getRecentComment(req,res){
+export async function getRecentComment(req,res){
     const userId = req.params.userId;
     const offset = req.params.offset
-    const recentComm = userServices.getRecentComment(userId,offset)
+    const recentComm = await userServices.getRecentComment(userId,offset)
     return res.json({
         comments: recentComm
     })
 }
 
 // get recent posts /"follower/:following"
-export function getIsFollowing(req,res){
+export async function getIsFollowing(req,res){
     const follower = req.params.follower;
     const following = req.params.following;
-    const isFollowing = userServices.isUserFollowing(follower,following)
+    const isFollowing = await userServices.isUserFollowing(follower,following)
     return res.json({
         isFollowing
     })
 }
 
 // get recent comments /"userId/:offset"
-export function getRecentUpvotes(req,res){
+export async function getRecentUpvotes(req,res){
     const userId = req.params.userId;
     const offset = req.params.offset
-    const recentUpvotes = userServices.recentUpvoted(userId,offset)
+    const recentUpvotes = await userServices.recentUpvoted(userId,offset)
     return res.json({
         upvotes: recentUpvotes
     })
 }
 
 // get recent comments /"userId/:offset"
-export function getRecentDownvotes(req,res){
+export async function getRecentDownvotes(req,res){
     const userId = req.params.userId;
     const offset = req.params.offset
-    const recentDownvote = userServices.recentDownvoted(userId,offset)
+    const recentDownvote = await userServices.recentDownvoted(userId,offset)
     return res.json({
         upvotes: recentDownvote
     })
 }
 
 
-export function userSearch(req, res) {
+export async function userSearch(req, res) {
     const keyword = req.params.keyword;
     console.log(keyword)
 
@@ -116,7 +116,7 @@ export function userSearch(req, res) {
         })
     }
 
-    const result = userServices.searchUser(keyword);
+    const result = await userServices.searchUser(keyword);
     console.log(result)
     return res.json(
         {
@@ -126,9 +126,9 @@ export function userSearch(req, res) {
     )
 
 }
-export function getAllUsers(req, res) {
+export async function getAllUsers(req, res) {
 
-    const result = userServices.getAllUsers();
+    const result = await userServices.getAllUsers();
     console.log(result)
     return res.json(
         {

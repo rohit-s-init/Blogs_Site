@@ -5,21 +5,21 @@ import { userSearch } from "../controllers/user.controller.js";
 const router = Router();
 
 
-router.get("/me", requireAuth, userController.getMe)
+router.get("/me", requireAuth, userController.getMe) //checked
 
-router.get("/my_posts", requireAuth, userController.getMyPosts)
-router.get("/my_posts/:id", requireAuth, userController.getMyPostsById)
-router.get("/stats", requireAuth, userController.getUserStats);
+router.get("/my_posts", requireAuth, userController.getMyPosts) //checked
+router.get("/my_posts/:id", requireAuth, userController.getMyPostsById) //haltes
+router.get("/stats", requireAuth, userController.getUserStats); //checked
 
 // get user
-router.get("/profile/:userId",userController.getUserProfile);
-router.get("/user_recent_posts/:userId/:offset",userController.getRecentPosts)
-router.get("/user_recent_comments/:userId/:offset",userController.getRecentComment)
-router.get("/isfollowing/:follower/:following",userController.getIsFollowing)
-router.get("/user_recent_upvoted_posts/:userId/:offset",userController.getRecentUpvotes)
-router.get("/user_recent_downvoted_posts/:userId/:offset",userController.getRecentDownvotes)
-router.get("/usersearch/:keyword", userSearch);
-router.get("/usersearch/", userController.getAllUsers);
+router.get("/profile/:userId",userController.getUserProfile); //checked
+router.get("/user_recent_posts/:userId/:offset",userController.getRecentPosts) //checked
+router.get("/user_recent_comments/:userId/:offset",userController.getRecentComment) //checked
+router.get("/isfollowing/:follower/:following",userController.getIsFollowing) //checked
+router.get("/user_recent_upvoted_posts/:userId/:offset",userController.getRecentUpvotes) //checked
+router.get("/user_recent_downvoted_posts/:userId/:offset",userController.getRecentDownvotes) //checked
+router.get("/usersearch/:keyword", userSearch); //checked
+router.get("/usersearch/", userController.getAllUsers); //checked
 
 
 export default router;

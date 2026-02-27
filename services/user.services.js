@@ -1,8 +1,8 @@
-import db from "../db.js";
+import db from "../config/db.js";
 
 
-export function getMyPosts(user_id, currentUserId) {
-    return db.prepare(`
+export async function getMyPosts(user_id, currentUserId) {
+    return (await db.execute(`
         SELECT 
             posts.*,
             users.username,
@@ -35,14 +35,14 @@ export function getMyPosts(user_id, currentUserId) {
 
         WHERE posts.user_id = ?
 
-        GROUP BY posts.id
+        GROUP BY posts.id,users.id
 
         ORDER BY posts.created_at DESC
-    `).all(currentUserId, currentUserId, user_id);
+    `, [user_id, user_id, user_id]))[0];
 }
 
-export function getMyPostById(postId, currentUserId) {
-    return db.prepare(`
+export async function getMyPostById(postId, currentUserId) {
+    return (await db.execute(`
         SELECT 
             posts.*,
             users.username,
@@ -76,33 +76,35 @@ export function getMyPostById(postId, currentUserId) {
         WHERE posts.id = ?
 
         GROUP BY posts.id
-    `).get(currentUserId, currentUserId, postId);
+    `, [currentUserId, currentUserId, postId]))[0];
 }
 
-export function getUserStats(userId) {
+export async function getUserStats(userId) {
 
-    const postCount = db.prepare(`
+    const [postCount] = await db.execute(`
         SELECT COUNT(*) as totalPosts
         FROM posts
         WHERE user_id = ?
-    `).get(userId);
+    `, [userId]);
 
-    const likeCount = db.prepare(`
+    const [likeCount] = await db.execute(`
         SELECT COUNT(*) as totalLikes
         FROM post_reactions pr
         JOIN posts p ON pr.post_id = p.id
         WHERE p.user_id = ?
         AND pr.type = 'like'
-    `).get(userId);
+    `, [userId]);
 
+    console.log(postCount)
+    console.log(likeCount)
     return {
-        totalPosts: postCount.totalPosts,
-        totalLikes: likeCount.totalLikes
+        totalPosts: postCount[0].totalPosts,
+        totalLikes: likeCount[0].totalLikes
     };
 }
 
-export function getUserById(id) {
-    const user = db.prepare(`
+export async function getUserById(id) {
+    const [user] = await db.execute(`
 SELECT 
   u.id,
   u.username,
@@ -122,21 +124,22 @@ SELECT
 
 FROM users u
 WHERE u.id = ?;
-    `).get(id);
+    `, [id]);
     return user;
 }
 
-export function getRecentPosts(id, offset) {
-    const recentPosts = db.prepare(`
-        SELECT 
+export async function getRecentPosts(id, offset) {
+    const offsetNum = Number(offset) * 10;
+    const [recentPosts] = await db.execute(`
+SELECT 
     posts.*,
 
     users.username,
     users.icon AS user_icon,
 
-    groups.id AS group_id,
-    groups.name AS group_name,
-    groups.icon AS group_icon,
+    groupss.id AS group_id,
+    groupss.name AS group_name,
+    groupss.icon AS group_icon,
 
     COUNT(DISTINCT CASE 
         WHEN post_reactions.type = 'like' THEN post_reactions.id 
@@ -165,8 +168,8 @@ FROM posts
 JOIN users 
     ON posts.user_id = users.id
 
-JOIN groups
-    ON posts.group_id = groups.id
+JOIN groupss
+    ON posts.group_id = groupss.id
 
 LEFT JOIN post_reactions 
     ON posts.id = post_reactions.post_id
@@ -176,17 +179,21 @@ LEFT JOIN comments
 
 WHERE users.id = ?
 
-GROUP BY posts.id
+GROUP BY 
+    posts.id,
+    users.id,
+    groupss.id
 
 ORDER BY posts.created_at DESC
 
-LIMIT 10 OFFSET ?;
+LIMIT 10 OFFSET ${offsetNum};
     
-    `).all(id, id, id, offset * 10);
+    `, [id, id, id]);
     return recentPosts;
 }
-export function getRecentComment(id, offset) {
-    const recentComment = db.prepare(`
+export async function getRecentComment(id, offset) {
+    const offserNum = Number(offset) * 10;
+    const [recentComment] = await db.execute(`
 SELECT 
   c.id,
   c.content,
@@ -198,22 +205,22 @@ FROM comments c
 JOIN posts p ON p.id = c.post_id
 WHERE c.user_id = ?
 ORDER BY c.created_at DESC
-LIMIT 10 OFFSET ?;
+LIMIT 10 OFFSET ${offserNum};
     
-    `).all(id, offset * 10);
+    `, [id]);
     return recentComment;
 }
-export function isUserFollowing(folowerId, followingId) {
-    const isFollowing = db.prepare(`
+export async function isUserFollowing(folowerId, followingId) {
+    const [isFollowing] = await db.execute(`
 SELECT 1
 FROM followers
 WHERE follower_id = ?
 AND following_id = ?;
-    `).get(folowerId, followingId);
-    return isFollowing;
+    `, [folowerId, followingId]);
+    return isFollowing.length == 0 ? 0 : 1;
 }
-export function recentUpvoted(userId) {
-    const upvotes = db.prepare(`
+export async function recentUpvoted(userId) {
+    const [upvotes] = await db.execute(`
 SELECT 
   p.id,
   p.title,
@@ -235,17 +242,17 @@ SELECT
 
 FROM post_reactions pr
 JOIN posts p ON p.id = pr.post_id
-JOIN groups g ON g.id = p.group_id
+JOIN groupss g ON g.id = p.group_id
 
 WHERE pr.user_id = ?
 AND pr.type = 'like'
 
 ORDER BY pr.created_at DESC;        
-`)
+`, [userId])
     return upvotes;
 }
-export function recentDownvoted(userId) {
-    const downvote = db.prepare(`
+export async function recentDownvoted(userId) {
+    const [downvote] = await db.execute(`
 SELECT 
   p.id,
   p.title,
@@ -265,18 +272,18 @@ SELECT
 
 FROM post_reactions pr
 JOIN posts p ON p.id = pr.post_id
-JOIN groups g ON g.id = p.group_id
+JOIN groupss g ON g.id = p.group_id
 
 WHERE pr.user_id = ?
 AND pr.type = 'dislike'
 
 ORDER BY pr.created_at DESC;
   
-`)
+`, [userId])
     return downvote;
 }
 
-export function searchUser(keyword, userId = null) {
+export async function searchUser(keyword, userId = null) {
 
     const words = keyword
         .trim()
@@ -285,44 +292,42 @@ export function searchUser(keyword, userId = null) {
 
     if (words.length === 0) return [];
 
-    // Build dynamic WHERE conditions
     const conditions = words.map(() =>
-        "(u.username LIKE ? COLLATE NOCASE OR u.description LIKE ? COLLATE NOCASE)"
+        "(u.username LIKE ? OR u.description LIKE ?)"
     ).join(" OR ");
 
-    // Build like parameters
     const likeParams = words.flatMap(word => [
         `%${word}%`,
         `%${word}%`
     ]);
 
     const query = `
-SELECT 
-  u.id,
-  u.username,
-  u.icon,
-  u.description,
-  u.created_at,
+        SELECT 
+          u.id,
+          u.username,
+          u.icon,
+          u.description,
+          u.created_at,
 
-  /* followers count */
-  (SELECT COUNT(*) 
-   FROM followers f 
-   WHERE f.following_id = u.id) AS followers_count,
+          /* followers count */
+          (SELECT COUNT(*) 
+           FROM followers f 
+           WHERE f.following_id = u.id) AS followers_count,
 
-  /* following count */
-  (SELECT COUNT(*) 
-   FROM followers f 
-   WHERE f.follower_id = u.id) AS following_count
+          /* following count */
+          (SELECT COUNT(*) 
+           FROM followers f 
+           WHERE f.follower_id = u.id) AS following_count
 
-FROM users u
-WHERE ${conditions}
+        FROM users u
+        WHERE ${conditions}
     `;
 
-    return db.prepare(query).all(
-        ...likeParams
-    );
+    const [rows] = await db.execute(query, likeParams);
+
+    return rows;
 }
-export function getAllUsers() {
+export async function getAllUsers() {
 
     const query = `
 SELECT 
@@ -345,7 +350,7 @@ SELECT
 FROM users u
     `;
 
-    return db.prepare(query).all();
+    return (await db.execute(query))[0];
 }
 
 export function checkUserInGroup(userId, groupId) {
