@@ -1,48 +1,67 @@
 import db from "../db.js";
 
-export function createPost(title, content, userId) {
+export function createPost(title, content, groupId, userId) {
     return db.prepare(`
-        INSERT INTO posts (title, content, user_id)
-        VALUES (?, ?, ?)
-    `).run(title, content, userId);
+        INSERT INTO posts (title, content, user_id, group_id)
+        VALUES (?, ?, ?, ?)
+    `).run(title, content, userId, groupId);
 }
 
-export function getAllPosts(userId) {
+export function getAllPosts(userId, offset = 0) {
     return db.prepare(`
-        SELECT 
-            posts.*, 
-            users.username,
+SELECT 
+    posts.*,
 
-            COUNT(CASE WHEN post_reactions.type = 'like' THEN 1 END) 
-                AS likes_count,
+    users.username,
+    users.icon AS user_icon,
 
-            COUNT(CASE WHEN post_reactions.type = 'dislike' THEN 1 END) 
-                AS dislikes_count,
+    groups.id AS group_id,
+    groups.name AS group_name,
+    groups.icon AS group_icon,
 
-            MAX(CASE 
-                WHEN post_reactions.user_id = ? 
-                     AND post_reactions.type = 'like'
-                THEN 1 ELSE 0 
-            END) AS user_liked,
+    COUNT(DISTINCT CASE 
+        WHEN post_reactions.type = 'like' THEN post_reactions.id 
+    END) AS likes_count,
 
-            MAX(CASE 
-                WHEN post_reactions.user_id = ? 
-                     AND post_reactions.type = 'dislike'
-                THEN 1 ELSE 0 
-            END) AS user_disliked
+    COUNT(DISTINCT CASE 
+        WHEN post_reactions.type = 'dislike' THEN post_reactions.id 
+    END) AS dislikes_count,
 
-        FROM posts
+    COUNT(DISTINCT comments.id) AS comment_count,
 
-        JOIN users 
-            ON posts.user_id = users.id
+    MAX(CASE 
+        WHEN post_reactions.user_id = ? 
+             AND post_reactions.type = 'like'
+        THEN 1 ELSE 0 
+    END) AS user_liked,
 
-        LEFT JOIN post_reactions 
-            ON posts.id = post_reactions.post_id
+    MAX(CASE 
+        WHEN post_reactions.user_id = ? 
+             AND post_reactions.type = 'dislike'
+        THEN 1 ELSE 0 
+    END) AS user_disliked
 
-        GROUP BY posts.id
+FROM posts
 
-        ORDER BY posts.created_at DESC
-    `).all(userId, userId);
+JOIN users 
+    ON posts.user_id = users.id
+
+JOIN groups
+    ON posts.group_id = groups.id
+
+LEFT JOIN post_reactions 
+    ON posts.id = post_reactions.post_id
+
+LEFT JOIN comments
+    ON posts.id = comments.post_id
+
+GROUP BY posts.id
+
+ORDER BY posts.created_at DESC
+
+LIMIT 10 OFFSET ?;
+
+    `).all(userId, userId, offset * 10);
 }
 export function getAllUserPosts(userId, currentUserId) {
     return db.prepare(`
@@ -123,30 +142,45 @@ export function getPostById(id, currentUserId) {
     `).get(currentUserId, currentUserId, id);
 }
 
-export function getPostByIdPublic(id) {
+export function getPostByIdPublic(postId, userId = null) {
     return db.prepare(`
-        SELECT 
-            posts.*,
-            users.username,
+    SELECT 
+        p.*,
+        u.username,
+        g.name as group_name,
+        g.icon as group_icon,
 
-            COUNT(CASE WHEN post_reactions.type = 'like' THEN 1 END) 
-                AS likes_count,
+        COUNT(CASE WHEN pr.type = 'like' THEN 1 END) 
+            AS likes_count,
 
-            COUNT(CASE WHEN post_reactions.type = 'dislike' THEN 1 END) 
-                AS dislikes_count
+        COUNT(CASE WHEN pr.type = 'dislike' THEN 1 END) 
+            AS dislikes_count,
 
-        FROM posts
+        MAX(CASE 
+            WHEN pr.user_id = ? AND pr.type = 'like'
+            THEN 1 ELSE 0 
+        END) AS user_liked,
 
-        JOIN users 
-            ON posts.user_id = users.id
+        MAX(CASE 
+            WHEN pr.user_id = ? AND pr.type = 'dislike'
+            THEN 1 ELSE 0 
+        END) AS user_disliked
 
-        LEFT JOIN post_reactions 
-            ON posts.id = post_reactions.post_id
+    FROM posts p
 
-        WHERE posts.id = ?
+    JOIN users u 
+        ON p.user_id = u.id
 
-        GROUP BY posts.id
-    `).get(id);
+    JOIN groups g 
+        ON g.id = p.group_id
+
+    LEFT JOIN post_reactions pr 
+        ON p.id = pr.post_id
+
+    WHERE p.id = ?
+
+    GROUP BY p.id
+  `).get(userId, userId, postId);
 }
 
 
@@ -231,6 +265,84 @@ export function searchPosts(keyword) {
     return posts;
 }
 
+export function searchByPost(keyword, userId = null) {
+
+    const words = keyword
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    // if (words.length === 0) return [];
+
+    // Build dynamic WHERE conditions
+    const conditions = words.map(() =>
+        "(posts.title LIKE ? COLLATE NOCASE OR posts.content LIKE ? COLLATE NOCASE)"
+    ).join(" OR ");
+
+    // Build like parameters
+    const likeParams = words.flatMap(word => [
+        `%${word}%`,
+        `%${word}%`
+    ]);
+
+    const query = `
+        SELECT 
+            posts.*,
+            users.username,
+            users.icon AS user_icon,
+            groups.id AS group_id,
+            groups.name AS group_name,
+            groups.icon AS group_icon,
+
+            COUNT(DISTINCT CASE 
+                WHEN post_reactions.type = 'like' THEN post_reactions.id 
+            END) AS likes_count,
+
+            COUNT(DISTINCT CASE 
+                WHEN post_reactions.type = 'dislike' THEN post_reactions.id 
+            END) AS dislikes_count,
+
+            COUNT(DISTINCT comments.id) AS comment_count,
+
+            MAX(CASE 
+                WHEN post_reactions.user_id = ? 
+                     AND post_reactions.type = 'like'
+                THEN 1 ELSE 0 
+            END) AS user_liked,
+
+            MAX(CASE 
+                WHEN post_reactions.user_id = ? 
+                     AND post_reactions.type = 'dislike'
+                THEN 1 ELSE 0 
+            END) AS user_disliked
+
+        FROM posts
+
+        JOIN users ON posts.user_id = users.id
+        JOIN groups ON posts.group_id = groups.id
+
+        LEFT JOIN post_reactions 
+            ON posts.id = post_reactions.post_id
+
+        LEFT JOIN comments
+            ON posts.id = comments.post_id
+
+        WHERE ${conditions}
+
+        GROUP BY posts.id
+        ORDER BY posts.created_at DESC
+    `;
+
+    return db.prepare(query).all(
+        userId,
+        userId,
+        ...likeParams
+    );
+}
+
+
+
+
 
 export async function createReply(req, res) {
     const { content, parent_id } = req.body;
@@ -244,20 +356,58 @@ export async function createReply(req, res) {
 
     res.json({ success: true });
 }
-export function getComments(postId) {
-
+export function getComments(postId, userId = null) {
     const comments = db.prepare(`
-        SELECT 
-            comments.id,
-            comments.content,
-            comments.parent_id,
-            comments.created_at,
-            users.username
-        FROM comments
-        JOIN users ON users.id = comments.user_id
-        WHERE comments.post_id = ?
-        ORDER BY comments.created_at ASC
-    `).all(postId);
+    SELECT 
+        c.id,
+        c.content,
+        c.parent_id,
+        c.created_at,
+
+        u.username AS user_name,
+        u.id AS user_id,
+        u.icon AS user_icon,
+
+        /* total likes */
+        (
+          SELECT COUNT(*) 
+          FROM comment_reactions cr
+          WHERE cr.comment_id = c.id
+            AND cr.type = 'like'
+        ) AS likes_count,
+
+        /* total dislikes */
+        (
+          SELECT COUNT(*) 
+          FROM comment_reactions cr
+          WHERE cr.comment_id = c.id
+            AND cr.type = 'dislike'
+        ) AS dislikes_count,
+
+        /* did current user like */
+        EXISTS(
+          SELECT 1
+          FROM comment_reactions cr
+          WHERE cr.comment_id = c.id
+            AND cr.user_id = ?
+            AND cr.type = 'like'
+        ) AS user_liked,
+
+        /* did current user dislike */
+        EXISTS(
+          SELECT 1
+          FROM comment_reactions cr
+          WHERE cr.comment_id = c.id
+            AND cr.user_id = ?
+            AND cr.type = 'dislike'
+        ) AS user_disliked
+
+    FROM comments c
+    JOIN users u ON u.id = c.user_id
+
+    WHERE c.post_id = ?
+    ORDER BY c.created_at ASC
+  `).all(userId, userId, postId);
 
     return comments;
 }
@@ -288,4 +438,32 @@ export function createComment(content, userId, postId, parentId = null) {
     };
 }
 
+export function createNewPost(title, content, userId, groupId) {
+    console.log(title)
+    console.log(content)
+    console.log(userId)
+    console.log(groupId)
+
+    const sql = `
+        INSERT INTO posts (title, content, user_id, group_id)
+        VALUES (?, ?, ?, ?)
+    `;
+
+    const stmt = db.prepare(sql);
+
+    const result = stmt.run(
+        title,
+        content,
+        userId,
+        groupId
+    );
+
+    return {
+        id: result.lastInsertRowid,
+        title,
+        content,
+        user_id: userId,
+        group_id: groupId
+    };
+}
 

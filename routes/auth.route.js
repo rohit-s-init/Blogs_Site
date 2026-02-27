@@ -1,11 +1,14 @@
 import { Router } from "express";
 import * as authController from "../controllers/auth.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
-router.post("/register",authController.register)
-router.post("/login",authController.login)
-router.post("/verify-otp",authController.verifyOtp)
+router.post("/register", authController.register)
+router.post("/login", authController.login)
+router.post("/logout", authController.logout)
+router.get("/veruser", requireAuth, authController.verifyUser)
+router.post("/verify-otp", authController.verifyOtp)
 
 
 export default router;

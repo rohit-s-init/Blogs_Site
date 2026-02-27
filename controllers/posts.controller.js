@@ -1,29 +1,35 @@
 import * as postService from "../services/post.services.js";
+import { saveFile } from "../utils/sbbucket.js";
+import * as userServices from "../services/user.services.js"
 
-export async function createPost(req, res) {
-    const { title, content } = req.body;
+// export async function createPost(req, res) {
+//     const { title, content, groupId } = req.body;
 
-    if (!title || !content) {
-        return res.status(400).json({ error: "Missing fields" });
-    }
+//     if (!title || !content) {
+//         return res.status(400).json({ error: "Missing fields" });
+//     }
 
-    const userId = req.user.id; // from auth middleware
+//     const userId = req.user.id; // from auth middleware
 
-    postService.createPost(title, content, userId);
+//     postService.createPost(title, content, groupId, userId);
 
-    res.json({ message: "Post created" });
-}
+//     res.json({ message: "Post created" });
+// }
 
 export function listPosts(req, res) {
+    const offset = req.params.offset;
+    if (!offset) {
+        return res.status(400).json({ status: false, message: "please define offset" });
+    }
     try {
         let posts;
 
         if (req.user) {
             // Logged-in user → show reaction state
-            posts = postService.getAllPosts(req.user.id);
+            posts = postService.getAllPosts(req.user.id, offset);
         } else {
             // Guest user → no reaction state
-            posts = postService.getAllPosts(null);
+            posts = postService.getAllPosts(null, offset);
         }
 
         res.json(posts);
@@ -36,7 +42,7 @@ export function listPosts(req, res) {
 
 
 export function getPostForLoggedUser(req, res) {
-    const post = postService.getPostById(req.params.id,req.user.id);
+    const post = postService.getPostById(req.params.id, req.user.id);
     console.log(req.query.id);
 
     if (!post) return res.status(404).json({ error: "Not found" });
@@ -73,10 +79,10 @@ export function reactToPost(req, res) {
     res.json(result);
 }
 
-export function keywordSearch(req,res){
+export function keywordSearch(req, res) {
     const keyword = req.params.keyword;
 
-    if(!keyword){
+    if (!keyword) {
         return res.json({
             status: false,
             message: "no keyword found"
@@ -92,6 +98,29 @@ export function keywordSearch(req,res){
     )
 
 }
+
+export function postSearch(req, res) {
+    const keyword = req.params.keyword;
+    console.log(keyword)
+
+    if (!keyword) {
+        return res.json({
+            status: false,
+            message: "no keyword found"
+        })
+    }
+
+    const result = postService.searchByPost(keyword);
+    console.log(result)
+    return res.json(
+        {
+            status: true,
+            posts: result
+        }
+    )
+
+}
+
 
 function buildCommentTree(comments) {
 
@@ -111,7 +140,7 @@ function buildCommentTree(comments) {
     });
     return roots;
 }
-export function getComments(req,res){
+export function getComments(req, res) {
     const postId = req.params.post_id;
     const comments = postService.getComments(postId);
     console.log("comments are")
@@ -122,10 +151,10 @@ export function getComments(req,res){
     })
 }
 
-export function createComment(req,res){
-    const {content, postId, parentId} = req.body;
+export function createComment(req, res) {
+    const { content, postId, parentId } = req.body;
     const userId = req.user.id;
-    if(!content || !userId || !postId){
+    if (!content || !userId || !postId) {
         return res.status(400).json({
             status: false,
             message: "Missing Field"
@@ -133,7 +162,7 @@ export function createComment(req,res){
     }
 
     try {
-        const result = postService.createComment(content,userId,postId,parentId);
+        const result = postService.createComment(content, userId, postId, parentId);
         res.json({
             status: true,
             message: result
@@ -146,4 +175,51 @@ export function createComment(req,res){
     }
 
 
+}
+
+export async function uploadFile(req, res) {
+    const buffer = req.files[0].buffer;
+    const name = req.files[0].originalname;
+    const mimetype = req.files[0].mimetype;
+    console.log("inside upload files")
+
+    const resp = await saveFile(buffer, name, mimetype);
+    if (resp.error) {
+        return res.status(400).json({
+            status: false,
+            message: resp.error
+        })
+    }
+    else {
+        return res.json({
+            status: true,
+            url: resp
+        })
+    }
+}
+
+
+export async function createPosts(req, res) {
+    const { title, description, groupId } = req.body;
+    const userId = userServices.checkUserInGroup(req.user.id, groupId);
+    if (!userId) {
+        return res.json({
+            status: false,
+            messages: "Please join group to post"
+        })
+    }
+    try {
+        const resp = postService.createNewPost(title, description, req.user.id, groupId);
+
+        return res.json({
+            status: true,
+            resp
+        })
+    } catch (error) {
+        console.log(error)
+        return res.status(404).json({
+            status: false,
+            message: "server side error"
+        })
+    }
 }

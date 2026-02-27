@@ -8,7 +8,9 @@ export function signToken(user) {
     return jwt.sign(
         {
             id: user.id,
-            username: user.username
+            username: user.username,
+            icon: user.icon,
+            isVerified: user.is_verified
         },
         SECRET,
         {

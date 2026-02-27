@@ -47,20 +47,5 @@ export function findUserByEmail(email) {
 
 }
 
-export function verifyUser(username, password) {
-    let user = findUserByUsername(username);
 
-    if (!user) {
-        user = findUserByEmail(username);
-        if (!user) {
-            return null;
-        };
-    };
-
-    const match = bcrypt.compareSync(password, user.password_hash);
-
-    if (!match) return null;
-
-    return user;
-}
 

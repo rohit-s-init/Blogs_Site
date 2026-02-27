@@ -1,47 +1,33 @@
-import Database from "better-sqlite3";
-const db = new Database("./database/blog.db");
-db.pragma("foreign_keys = ON")
-
-console.log("sqlite connected")
-
-
-db.exec(`
-/*
-  |--------------------------------------------------------------------------
-  | USERS
-  |--------------------------------------------------------------------------
-  */
+CREATE DATABASE IF NOT EXISTS hivemind;
+use hivemind;
 CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id INTEGER PRIMARY KEY auto_increment,
 
-  email TEXT UNIQUE NOT NULL,
-  username TEXT NOT NULL,
-  password_hash TEXT NOT NULL,
-  icon TEXT DEFAULT "https://cdn.pixabay.com/photo/2022/08/14/20/57/bee-7386616_640.png",
-  description TEXT DEFAULT "Hello !",
+  email varchar(500) UNIQUE NOT NULL,
+  username varchar(200) NOT NULL,
+  password_hash varchar(255) NOT NULL,
+  icon varchar(500) DEFAULT "https://cdn.pixabay.com/photo/2022/08/14/20/57/bee-7386616_640.png",
+  description varchar(500) DEFAULT "Hello !",
 
-  otp TEXT,
+  otp varchar(10),
   otp_expiry INTEGER,
   is_verified INTEGER DEFAULT 0,
 
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE TABLE IF NOT EXISTS groups (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT UNIQUE NOT NULL,
+CREATE TABLE IF NOT EXISTS groupss (
+  id INTEGER PRIMARY KEY auto_increment,
+  name varchar(500) UNIQUE NOT NULL,
   description TEXT,
-  icon TEXT DEFAULT "https://cdn.pixabay.com/photo/2022/08/14/20/57/bee-7386616_640.png",
+  icon varchar(500) DEFAULT "https://cdn.pixabay.com/photo/2022/08/14/20/57/bee-7386616_640.png",
   created_by INTEGER NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  background TEXT DEFAULT "https://t3.ftcdn.net/jpg/03/15/34/90/360_F_315349043_6ohfFyx37AFusCKZtGQtJR0jqUxhb25Y.webp", 
+  background varchar(500) DEFAULT "https://t3.ftcdn.net/jpg/03/15/34/90/360_F_315349043_6ohfFyx37AFusCKZtGQtJR0jqUxhb25Y.webp", 
 
   FOREIGN KEY (created_by)
     REFERENCES users(id)
     ON DELETE CASCADE
 );
-
-
 
   /*
   |--------------------------------------------------------------------------
@@ -49,29 +35,28 @@ CREATE TABLE IF NOT EXISTS groups (
   |--------------------------------------------------------------------------
   */
 CREATE TABLE IF NOT EXISTS posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
+    id INTEGER PRIMARY KEY auto_increment,
+    title varchar(300) NOT NULL,
     content TEXT NOT NULL,
     user_id INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     group_id INTEGER NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+    FOREIGN KEY (group_id) REFERENCES groupss(id) ON DELETE CASCADE
 );
 
 /* post likes */
 CREATE TABLE IF NOT EXISTS post_reactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY auto_increment,
     post_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
-    type TEXT CHECK(type IN ('like', 'dislike')) NOT NULL,
+    type ENUM('like', 'dislike') NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(post_id, user_id),
-    FOREIGN KEY (post_id) REFERENCES posts(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-
 
 
   /*
@@ -83,7 +68,7 @@ CREATE TABLE IF NOT EXISTS post_reactions (
   |--------------------------------------------------------------------------
   */
   CREATE TABLE IF NOT EXISTS comments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY auto_increment,
     content TEXT NOT NULL,
     user_id INTEGER NOT NULL,
     post_id INTEGER NOT NULL,
@@ -97,8 +82,9 @@ CREATE TABLE IF NOT EXISTS post_reactions (
       REFERENCES posts(id)
       ON DELETE CASCADE
   );
-
-
+  
+  
+  
   /*
   |--------------------------------------------------------------------------
   | LIKES (junction table)
@@ -122,27 +108,27 @@ CREATE TABLE IF NOT EXISTS post_reactions (
       REFERENCES posts(id)
       ON DELETE CASCADE
   );
-
-
-
-
+  
+  
 CREATE TABLE IF NOT EXISTS group_members (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id INTEGER PRIMARY KEY auto_increment,
   group_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
-  role TEXT CHECK(role IN ('admin','moderator','member')) NOT NULL DEFAULT 'member',
+  role ENUM('admin','moderator','member') NOT NULL DEFAULT 'member',
   joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
   UNIQUE(group_id, user_id),
 
   FOREIGN KEY (group_id)
-    REFERENCES groups(id)
+    REFERENCES groupss(id)
     ON DELETE CASCADE,
 
   FOREIGN KEY (user_id)
     REFERENCES users(id)
     ON DELETE CASCADE
 );
+
+
 
 CREATE TABLE IF NOT EXISTS followers (
   follower_id INTEGER NOT NULL,
@@ -162,6 +148,8 @@ CREATE TABLE IF NOT EXISTS followers (
   CHECK (follower_id != following_id)
 );
 
+
+
 /*
 |--------------------------------------------------------------------------
 | COMMENT REACTIONS
@@ -171,12 +159,12 @@ CREATE TABLE IF NOT EXISTS followers (
 |--------------------------------------------------------------------------
 */
 CREATE TABLE IF NOT EXISTS comment_reactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id INTEGER PRIMARY KEY auto_increment,
 
   comment_id INTEGER NOT NULL,
   user_id INTEGER NOT NULL,
 
-  type TEXT CHECK(type IN ('like','dislike')) NOT NULL,
+  type enum('like','dislike') NOT NULL,
 
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
@@ -190,11 +178,3 @@ CREATE TABLE IF NOT EXISTS comment_reactions (
     REFERENCES users(id)
     ON DELETE CASCADE
 );
-
-  
-`);
-
-
-console.log("table created");
-
-export default db;

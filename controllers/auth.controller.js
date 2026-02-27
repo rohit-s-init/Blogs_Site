@@ -1,7 +1,9 @@
-import { findUserByEmail, registerUser, saveUser, verifyUser } from "../services/auth.services.js";
+import { findUserByEmail, findUserByUsername, registerUser, saveUser } from "../services/auth.services.js";
 import { sendOTP } from "../services/mail.services.js";
 import { signToken, verifyToken } from "../utils/jwt.js";
 import { generateOTP } from "../utils/otp.js";
+import bcrypt from "bcrypt"
+
 
 
 
@@ -58,7 +60,11 @@ export function verifyOtp(req, res) {
     }
 
     saveUser(email);
-    res.json({ status: true, token: signToken(user), message: "user verified, created new entry in database" });
+    res.cookie("token", signToken(user), {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: "/"
+    })
+    res.json({ status: true, user, message: "user verified, created new entry in database" });
 
 }
 
@@ -67,18 +73,56 @@ export function login(req, res) {
     if (!username || !password) {
         return res.status(400).json({ success: false, message: "Missing Field" });
     }
-    const user = verifyUser(username, password);
+    let user = findUserByEmail(username);
     if (!user) {
-        return res.json({
+        user = findUserByUsername(username);
+    }
+    if (!user) {
+        return res.status(401).json({
             status: false,
             message: "no user found"
         })
     }
+    if (!user.is_verified) {
+        return res.status(403).json({
+            status: false,
+            message: "Please verify your email first"
+        });
+    }
+
+
+    const match = bcrypt.compareSync(password, user.password_hash);
+
+    if (!match) return res.status(401).json({ status: false, message: "Invalid password" });
+
     const token = signToken(user);
-    res.json({
-        status: true,
-        token
+    res.cookie("token", token, {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: "/"
+    })
+
+    return res.json({ status: true, user });
+
+}
+
+export function logout(req, res) {
+    console.log(req.cookies)
+    return res.clearCookie("token").json({
+        status: true
     })
 }
 
+export function verifyUser(req, res) {
+    const user = req.user;
+    if (!user) {
+        return res.status(401).json({
+            status: false,
+            message: "user not logged in"
+        })
+    }
 
+    return res.json({
+        status: true,
+        user: user
+    })
+}
