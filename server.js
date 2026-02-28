@@ -23,7 +23,7 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded());
 app.use(express.static(path.join(__dirname, "public")));
-
+app.use(express.static("public"));
 // --------routes
 // ---------------
 
