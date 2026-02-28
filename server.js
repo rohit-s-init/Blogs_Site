@@ -13,11 +13,7 @@ const __dirname = import.meta.dirname;
 
 app.use(cors(
     {
-        origin: "http://localhost:5173",
-        credentials: true
-    },
-    {
-        origin: "https://blogs-site-frontend.vercel.app",
+        origin: ["http://localhost:5173", "https://blogs-site-frontend.vercel.app"],
         credentials: true
     }
 ));
