@@ -3,12 +3,8 @@ dotenv.config();
 import express from "express";
 import router from "./routes/index.route.js"
 import path from "path"
-import seed from "./seed.js"
 import cookieParser from "cookie-parser";
 import cors from "cors"
-import pool from "./config/db.js";
-import { otpExpiry } from "./utils/otp.js";
-seed();
 
 let app = express();
 const PORT = process.env.PORT || 3000;
