@@ -17,7 +17,7 @@ app.use(cors(
         credentials: true
     },
     {
-        origin: "https://blogs-site-frontend.vercel.app/",
+        origin: "https://blogs-site-frontend.vercel.app",
         credentials: true
     }
 ));
