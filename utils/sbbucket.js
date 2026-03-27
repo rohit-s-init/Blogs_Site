@@ -1,6 +1,23 @@
 import { StorageClient } from "@supabase/storage-js";
 
-export async function saveFile(buffer,name,mimeType) {
+
+function makeSafeFileName(name) {
+
+    name = name.split(" ").join("_");
+
+    name = name.split("'").join("");
+    name = name.split('"').join("");
+    name = name.split("‘").join("");
+    name = name.split("’").join("");
+    name = name.split("–").join("-");
+    name = name.split("—").join("-");
+    name = name.split("(").join("");
+    name = name.split(")").join("");
+
+    return Date.now()+"_hivemind";
+}
+
+export async function saveFile(buffer, name, mimeType) {
     const STORAGE_URL = process.env.STORAGE_URL;
     const SERVICE_KEY = process.env.SERVICE_KEY;
 
@@ -13,7 +30,7 @@ export async function saveFile(buffer,name,mimeType) {
         Authorization: `Bearer ${SERVICE_KEY}`,
     })
     const resp = await storageClient.from('hivemind_posts').upload(
-        Date.now()+name,
+        makeSafeFileName(name),
         buffer,
         { contentType: mimeType }
     )

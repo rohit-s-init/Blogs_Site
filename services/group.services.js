@@ -173,7 +173,6 @@ export async function searchGroup(keyword, userId = null) {
         ORDER BY g.created_at DESC
     `;
 
-    // ⚠ Parameter order matters
     const finalParams = userId
         ? [userId, ...likeParams]
         : likeParams;
@@ -248,7 +247,6 @@ export async function createGroup({ name, description, createdBy }) {
     try {
         await connection.beginTransaction();
 
-        // 1️⃣ Insert group
         const [insertResult] = await connection.execute(
             `
             INSERT INTO groupss (name, description, created_by)
@@ -259,7 +257,6 @@ export async function createGroup({ name, description, createdBy }) {
 
         const groupId = insertResult.insertId;
 
-        // 2️⃣ Insert admin membership
         await connection.execute(
             `
             INSERT INTO group_members (group_id, user_id, role)
@@ -268,7 +265,6 @@ export async function createGroup({ name, description, createdBy }) {
             [groupId, createdBy]
         );
 
-        // 3️⃣ Fetch created group
         const [rows] = await connection.execute(
             `
             SELECT

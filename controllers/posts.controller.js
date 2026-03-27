@@ -26,6 +26,8 @@ export async function listPosts(req, res) {
 
         if (req.user) {
             // Logged-in user → show reaction state
+            console.log("user id is ")
+            console.log(req.user.id)
             posts = await postService.getAllPosts(req.user.id, offset);
         } else {
             // Guest user → no reaction state
@@ -58,6 +60,15 @@ export async function getPostForAnonymous(req, res) {
 
     res.json(post);
 }
+export async function getPostForAuthUser(req, res) {
+    console.log("get post for anonymous")
+    const post = await postService.getPostByIdPublic(req.params.id, req.user.id);
+    console.log(req.query.id);
+
+    if (!post) return res.status(404).json({ error: "Not found" });
+
+    res.json(post);
+}
 
 export function deletePost(req, res) {
     postService.deletePost(req.params.id);
@@ -65,8 +76,8 @@ export function deletePost(req, res) {
 }
 
 
-export function reactToPost(req, res) {
-    const postId = req.params.id;
+export async function reactToPost(req, res) {
+    const postId = req.params.postId;
     const userId = req.user.id;
     const { type } = req.body;
 
@@ -74,7 +85,7 @@ export function reactToPost(req, res) {
         return res.status(400).json({ error: "Invalid reaction type" });
     }
 
-    const result = postService.toggleReaction(postId, userId, type);
+    const result = await postService.toggleReaction(postId, userId, type);
 
     res.json(result);
 }

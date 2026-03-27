@@ -162,7 +162,13 @@ export async function getPostByIdPublic(postId, userId = null) {
             MAX(CASE 
                 WHEN pr.user_id = ? AND pr.type = 'dislike'
                 THEN 1 ELSE 0 
-            END) AS user_disliked
+            END) AS user_disliked,
+
+            (
+                SELECT COUNT(*)
+                FROM comments c
+                WHERE c.post_id = p.id
+            ) AS comment_count
 
         FROM posts p
 
@@ -211,44 +217,49 @@ export function deletePost(id) {
     return transaction(id);
 }
 
-export function toggleReaction(postId, userId, type) {
+export async function toggleReaction(postId, userId, type) {
 
-    const existing = db.prepare(`
+    let [existing] = await db.execute(`
         SELECT * FROM post_reactions
         WHERE post_id = ? AND user_id = ?
-    `).get(postId, userId);
+    `, [postId, userId]);
+
+    console.log(existing);
+    existing = existing.length == 0 ? null : existing[0];
+    console.log(existing);
 
     if (!existing) {
-        // Insert new reaction
-        db.prepare(`
+        console.log("inserting new")
+        let resp = await db.execute(`
             INSERT INTO post_reactions (post_id, user_id, type)
             VALUES (?, ?, ?)
-        `).run(postId, userId, type);
+        `, [postId, userId, type]);
+        console.log(resp);
 
     } else if (existing.type === type) {
-        // Same reaction clicked again → remove it
-        db.prepare(`
+        console.log("updating existing")
+        let resp = await db.execute(`
             DELETE FROM post_reactions
             WHERE post_id = ? AND user_id = ?
-        `).run(postId, userId);
+        `, [postId, userId]);
 
     } else {
-        // Switch reaction
-        db.prepare(`
+        console.log("switch");
+        let resp = await db.execute(`
             UPDATE post_reactions
             SET type = ?
             WHERE post_id = ? AND user_id = ?
-        `).run(type, postId, userId);
+        `, [type, postId, userId]);
+        console.log(resp);
     }
 
-    // Return updated counts
-    return db.prepare(`
+    return await db.execute(`
         SELECT
             COUNT(CASE WHEN type='like' THEN 1 END) AS likes_count,
             COUNT(CASE WHEN type='dislike' THEN 1 END) AS dislikes_count
         FROM post_reactions
         WHERE post_id = ?
-    `).get(postId);
+    `, [postId]);
 }
 
 export function searchPosts(keyword) {
@@ -408,7 +419,7 @@ export async function getComments(postId, userId = null) {
     JOIN users u ON u.id = c.user_id
 
     WHERE c.post_id = ?
-    ORDER BY c.created_at ASC
+    ORDER BY c.created_at DESC
   `, [userId, userId, postId]))[0];
 
     return comments;

@@ -1,6 +1,6 @@
 import express from "express";
 import { requireAuth } from "../middleware/auth.middleware.js";
-import { listPosts, createPosts, deletePost, getPostForAnonymous, getPostForLoggedUser, reactToPost, keywordSearch, getComments, createComment, uploadFile, postSearch } from "../controllers/posts.controller.js";
+import { listPosts, createPosts, deletePost, getPostForAnonymous, getPostForLoggedUser, reactToPost, keywordSearch, getComments, createComment, uploadFile, postSearch, getPostForAuthUser } from "../controllers/posts.controller.js";
 import { loadFiles } from "../middleware/filehandle.middleware.js";
 const router = express.Router();
 
@@ -26,14 +26,18 @@ router.post("/createpost", requireAuth, createPosts); // checked
 // router.delete("/:id", requireAuth, deletePost);
 
 // react to post
-// router.post("/:id/react", requireAuth, reactToPost);
+router.post("/reacttopost/:postId", requireAuth, reactToPost);
 
 // search keyword matching post
 // router.get("/search/:keyword", keywordSearch);
 router.get("/postsearch/:keyword", postSearch); // checked
 router.get("/postsearch/", listPosts); // checked
 
-router.get("/getpost/:id",getPostForAnonymous); // checked
+router.get("/postsearchauth/:keyword", requireAuth, postSearch); // checked
+router.get("/postsearchauth", requireAuth, listPosts); // checked
+
+router.get("/getpost/:id", getPostForAnonymous); // checked
+router.get("/getpostauth/:id",requireAuth, getPostForAuthUser); // checked
 
 
 

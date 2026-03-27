@@ -22,17 +22,15 @@ async function sendMail({to, subject, text, html}) {
         from: 'rohitrameshwarsawant@gmail.com',
         to: to,
         subject: subject,
-        text: text, // Plain-text version of the message
-        html: html, // HTML version of the message
+        text: text, 
+        html: html, 
 
 
     })
     return info;
 }
 
-/*
-  OTP specific helper
-*/
+
 export async function sendOTP(email, otp) {
     return sendMail({
         to: email,
