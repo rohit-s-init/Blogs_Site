@@ -11,12 +11,23 @@ const PORT = process.env.PORT || 3000;
 const __dirname = import.meta.dirname;
 
 
-app.use(cors(
-    {
-        origin: ["http://localhost:5173", "https://blogs-site-frontend.vercel.app"],
-        credentials: true
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://blogs-site-frontend.vercel.app"
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // allow Postman / curl
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
     }
-));
+  },
+  credentials: true
+}));
 
 app.use(cookieParser());
 app.use(express.json());
