@@ -82,6 +82,8 @@ export async function verifyOtp(req, res) {
     }
     res.cookie("token", signToken(user), {
         maxAge: 7 * 24 * 60 * 60 * 1000,
+        secure: true,           
+        sameSite: "None",      
         path: "/"
     })
     res.json({ status: true, user, message: "user verified, created new entry in database" });
