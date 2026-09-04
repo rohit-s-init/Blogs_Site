@@ -219,6 +219,30 @@ AND following_id = ?;
     `, [folowerId, followingId]);
     return isFollowing.length == 0 ? 0 : 1;
 }
+
+export async function followUser(followerId, followingId) {
+    const [result] = await db.execute(
+        `
+        INSERT IGNORE INTO followers (follower_id, following_id)
+        VALUES (?, ?)
+        `,
+        [followerId, followingId]
+    );
+
+    return result;
+}
+
+export async function unfollowUser(followerId, followingId) {
+    const [result] = await db.execute(
+        `
+        DELETE FROM followers
+        WHERE follower_id = ? AND following_id = ?
+        `,
+        [followerId, followingId]
+    );
+
+    return result;
+}
 export async function recentUpvoted(userId) {
     const [upvotes] = await db.execute(`
 SELECT 
