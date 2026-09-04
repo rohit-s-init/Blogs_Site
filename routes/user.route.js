@@ -16,6 +16,8 @@ router.get("/profile/:userId",userController.getUserProfile); //checked
 router.get("/user_recent_posts/:userId/:offset",userController.getRecentPosts) //checked
 router.get("/user_recent_comments/:userId/:offset",userController.getRecentComment) //checked
 router.get("/isfollowing/:follower/:following",userController.getIsFollowing) //checked
+router.post("/follow", requireAuth, userController.followUser)
+router.post("/unfollow", requireAuth, userController.unfollowUser)
 router.get("/user_recent_upvoted_posts/:userId/:offset",userController.getRecentUpvotes) //checked
 router.get("/user_recent_downvoted_posts/:userId/:offset",userController.getRecentDownvotes) //checked
 router.get("/usersearch/:keyword", userSearch); //checked

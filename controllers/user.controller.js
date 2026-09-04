@@ -84,6 +84,40 @@ export async function getIsFollowing(req,res){
     })
 }
 
+export async function followUser(req, res) {
+    const { followingId } = req.body;
+
+    try {
+        const resp = await userServices.followUser(req.user.id, followingId);
+        return res.json({
+            status: true,
+            resp
+        })
+    } catch (error) {
+        return res.status(400).json({
+            status: false,
+            message: "failed to follow user"
+        })
+    }
+}
+
+export async function unfollowUser(req, res) {
+    const { followingId } = req.body;
+
+    try {
+        const resp = await userServices.unfollowUser(req.user.id, followingId);
+        return res.json({
+            status: true,
+            resp
+        })
+    } catch (error) {
+        return res.status(400).json({
+            status: false,
+            message: "failed to unfollow user"
+        })
+    }
+}
+
 // get recent comments /"userId/:offset"
 export async function getRecentUpvotes(req,res){
     const userId = req.params.userId;
